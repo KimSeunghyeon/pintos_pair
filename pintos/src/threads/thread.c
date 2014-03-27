@@ -15,7 +15,6 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
-//sh
 //sp
 
 /* Random value for struct thread's `magic' member.
