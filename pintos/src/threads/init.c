@@ -37,7 +37,7 @@
 
 /* Amount of physical memory, in 4 kB pages. */
 size_t ram_pages;
-
+//
 /* Page directory with kernel mappings only. */
 uint32_t *base_page_dir;
 
