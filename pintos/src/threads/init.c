@@ -380,7 +380,7 @@ power_off (void)
   printf ("still running...\n");
   for (;;);
 }
-
+/*print stats function*/
 /* Print statistics about Pintos execution. */
 static void
 print_stats (void) 
