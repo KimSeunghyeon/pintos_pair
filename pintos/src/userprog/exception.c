@@ -10,7 +10,7 @@ static long long page_fault_cnt;
 
 static void kill (struct intr_frame *);
 static void page_fault (struct intr_frame *);
-
+//
 /* Registers handlers for interrupts that can be caused by user
    programs.
 
