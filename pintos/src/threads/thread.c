@@ -11,12 +11,9 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
-//sp
-//haha
 
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
@@ -73,10 +70,6 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-
-
-static bool thread_order_func(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -139,8 +132,6 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
-
-  //timer_wakeup();
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -208,10 +199,6 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  if((priority > thread_current()->priority)){
-	  thread_yield();
-  }
-
   return tid;
 }
 
@@ -247,11 +234,9 @@ thread_unblock (struct thread *t)
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
-
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
-
   intr_set_level (old_level);
 }
 
@@ -329,36 +314,8 @@ thread_yield (void)
 void
 thread_set_priority (int new_priority) 
 {
-  enum intr_level old_level;
-
-  bool is_yield = thread_current ()->priority > new_priority;
-  bool is_donated = thread_current ()->donation_depth;
-  bool is_lock_holding = !(list_empty(&thread_current()->having_locks_list));
-
-  if((is_donated)){
-   thread_current()->original_priority = new_priority;
-  }
-  else{
-	  //deferred donation
-	  if(is_lock_holding){
-		   struct semaphore sema = list_entry (list_front (&thread_current()->having_locks_list), struct lock, elem)->semaphore;
-		   if(new_priority < sema.max_waiter_priority){
-			  thread_current()->original_priority = new_priority;
-			  thread_current()->priority = sema.max_waiter_priority;
-		   }
-	  }
-	  else{
-		  //no consider about deferred donation
-		  thread_current ()->priority = new_priority;
-
-		  if(is_yield){
-		      thread_yield ();
-		  }
-	  }
-  }
-
+  thread_current ()->priority = new_priority;
 }
-
 
 /* Returns the current thread's priority. */
 int
@@ -483,11 +440,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  t->donation_depth = 0;
-  t->trying_lock = NULL;
-  t->trying_sema = NULL;
-
-  list_init (&t->having_locks_list);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -508,20 +460,15 @@ alloc_frame (struct thread *t, size_t size)
    empty.  (If the running thread can continue running, then it
    will be in the run queue.)  If the run queue is empty, return
    idle_thread. */
-
-
 static struct thread *
-next_thread_to_run (void)
+next_thread_to_run (void) 
 {
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    {
-      list_sort(&ready_list, thread_order_func, NULL);
-      return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    }
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
-//
+
 /* Completes a thread switch by activating the new thread's page
    tables, and, if the previous thread is dying, destroying it.
 
@@ -605,18 +552,6 @@ allocate_tid (void)
   return tid;
 }
 
-
-static bool
-thread_order_func (const struct list_elem* a_, const struct list_elem* b_,
-        void* aux UNUSED)
-{
-  struct thread* a = list_entry(a_, struct thread, elem);
-  struct thread* b = list_entry(b_, struct thread, elem);
-
-  return a->priority > b->priority;
-}
-
-
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
