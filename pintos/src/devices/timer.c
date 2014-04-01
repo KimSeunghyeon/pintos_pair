@@ -19,6 +19,7 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
+static struct list sleeping_list;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -29,6 +30,9 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 
+static bool unsleep_order_func(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
+
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
    corresponding interrupt. */
@@ -38,6 +42,7 @@ timer_init (void)
   /* 8254 input frequency divided by TIMER_FREQ, rounded to
      nearest. */
   uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
+  list_init (&sleeping_list);
 
   outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
   outb (0x40, count & 0xff);
@@ -94,14 +99,20 @@ timer_elapsed (int64_t then)
 
 /* Suspends execution for approximately TICKS timer ticks. */
 void
-timer_sleep (int64_t ticks) 
+timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks ();
 
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  struct thread *t = thread_current ();
+  enum intr_level old_level;
+  old_level = intr_disable ();
+  t->wakeup_time = start + ticks;
+  list_insert_ordered (&sleeping_list, &t->elem, unsleep_order_func, NULL);
+  thread_block ();
+  intr_set_level (old_level);
+
 }
+
 
 /* Suspends execution for approximately MS milliseconds. */
 void
@@ -137,6 +148,23 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+
+  	struct thread* t;
+    while (!list_empty (&sleeping_list))
+    {
+      t = list_entry (list_front (&sleeping_list), struct thread, elem);
+
+      if (ticks >= t->wakeup_time)
+      {
+        list_pop_front (&sleeping_list);
+        thread_unblock (t);
+      }
+      else
+      {
+        break;
+      }
+    }
+
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -200,5 +228,15 @@ real_time_sleep (int64_t num, int32_t denom)
       ASSERT (denom % 1000 == 0);
       busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
     }
+}
+
+static bool
+unsleep_order_func (const struct list_elem* a_, const struct list_elem* b_,
+               void* aux UNUSED)
+{
+  struct thread* a = list_entry(a_, struct thread, elem);
+  struct thread* b = list_entry(b_, struct thread, elem);
+
+  return a->wakeup_time < b->wakeup_time;
 }
 
