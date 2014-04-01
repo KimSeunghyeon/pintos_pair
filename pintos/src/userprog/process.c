@@ -25,26 +25,147 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
+
+static void
+process_init (struct process *proc)
+{
+	ASSERT(proc != NULL);
+	list_init(&proc->children);
+	list_init(&proc->slave_threads);
+	list_init(&proc->fd_list);
+	proc->parent = NULL;
+	// Set pid same as tid for now
+	proc->pid = -1;
+	proc->slave = NULL;
+	proc->slave_tid = -1;
+	proc->thread_died = false;
+	proc->thread_die_status = -1;
+	proc->waiting = false;
+}
+
+
+/* Search child thread in the current process with given tid
+ * and return matched thread. If there is no match, returns NULL */
+static struct process *
+get_proc_with_tid (tid_t tid)
+{
+	struct list *p_list = &process_list;
+	struct list_elem *curr_list = list_head (p_list);
+	struct process *curr_list_p;
+
+	if (process_list.head.next == NULL) /* if list is not initialized */
+				list_init(&process_list); /* initialize it */
+	if (list_empty(&process_list))
+		return NULL;
+	while ((curr_list = list_next (curr_list)) != list_end (p_list)) {
+		curr_list_p = list_entry(curr_list, struct process, pl_elem);
+
+		//printf("process_get_proc:process found.. %d, tid: %d, given tid: %d\n", (curr_list_p->slave == NULL ? -1 : curr_list_p->slave_tid), curr_list_p->slave_tid, tid);
+		if (curr_list_p->slave_tid == tid) {
+			//printf("process_get_proc:matching process found.. %d\n", curr_list_p->slave_tid);
+			return curr_list_p;
+		}
+	}
+	return NULL;
+}
+
+
+
+/* Starts a new thread running a user program loaded from
+   FILENAME.  The new thread may be scheduled (and may even exit)
+   before process_execute() returns.  Returns the new process's
+   thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
-  tid_t tid;
+	char *fn_copy;
+	char *fn_test;
+	char *p_test;
+	struct file *test_file;
+	tid_t tid;
+	struct process *new_proc;
 
-  /* Make a copy of FILE_NAME.
+	//printf("process_execute.. %s: %s \n", thread_current()->name, file_name);
+	if (thread_current()->master_proc == NULL) {
+		enum intr_level old_level;
+		old_level = intr_disable();
+		new_proc = (struct process *)palloc_get_page(0);
+		ASSERT(new_proc != NULL);
+		process_init(new_proc);
+		new_proc->parent = NULL;
+		new_proc->slave_tid = thread_current()->tid;
+		new_proc->slave = thread_current();
+		new_proc->pid = thread_current()->tid;
+		list_push_back(&new_proc->slave_threads, &thread_current()->p_elem); /* not used right now */
+		if (process_list.head.next == NULL) /* if list is not initialized */
+			list_init(&process_list); /* initialize it */
+		list_push_back(&process_list, &new_proc->pl_elem);
+		intr_set_level (old_level);
+		//printf("process_execute: process is made.. tname: %s, tid: %d\n", thread_current()->name, new_proc->slave_tid);
+
+		thread_current()->master_proc = new_proc;
+
+		/* initialize locks */
+		lock_init(&filesys_lock);
+		lock_init(&thread_lock);
+	}
+	lock_acquire(&thread_lock);
+	/* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
-    return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+	fn_copy = palloc_get_page (0);
+	if (fn_copy == NULL) {
+		lock_release(&thread_lock);
+		return TID_ERROR;
+	}
+	strlcpy (fn_copy, file_name, PGSIZE);
 
-  /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
-  return tid;
+	/* test for exec-missing */
+	fn_test = palloc_get_page (0);
+	if (fn_test == NULL) {
+		lock_release(&thread_lock);
+		return TID_ERROR;
+	}
+	strlcpy (fn_test, file_name, PGSIZE);
+
+	lock_acquire(&filesys_lock);
+	test_file = filesys_open (strtok_r(fn_test, " ", &p_test));
+	lock_release(&filesys_lock);
+
+	palloc_free_page(fn_test);
+	if (test_file == NULL) {
+		lock_release(&thread_lock);
+		return TID_ERROR;
+	}
+	else {
+		file_close(test_file);
+	}
+	/* Create a new thread to execute FILE_NAME.  */
+
+	tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+	//printf("name: %s, tid: %d\n", file_name, tid);
+	if (tid == TID_ERROR) {
+		palloc_free_page (fn_copy);
+	}
+	else {
+		/* Create new child process and set parent and slave tid information */
+		/* maybe need some synch */
+		new_proc = (struct process *)palloc_get_page(0);
+		ASSERT(new_proc != NULL);
+		process_init(new_proc);
+		new_proc->parent = thread_current()->master_proc;
+		new_proc->slave_tid = tid;
+		if (process_list.head.next == NULL) /* if list is not initialized */
+			list_init(&process_list); /* initialize it */
+		list_push_back(&process_list, &new_proc->pl_elem);
+		list_push_back(&thread_current()->master_proc->children, &new_proc->child_elem);
+		//printf("process_execute: process is made.. tid: %d\n", new_proc->slave_tid);
+
+	}
+	lock_release(&thread_lock);
+	return tid;
 }
-//
+
+
 /* A thread function that loads a user process and makes it start
    running. */
 static void
