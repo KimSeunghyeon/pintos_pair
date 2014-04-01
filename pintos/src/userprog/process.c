@@ -38,17 +38,17 @@ process_execute (const char *file_name)
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  /* Check if the file exists */
+  /* Check if the file exists */  
   strlcpy (fn_copy, file_name, 256); /* avoiding stack page overflow */
-  //strlcpy (fn_copy, file_name, PGSIZE);
+  //strlcpy (fn_copy, file_name, PGSIZE);  
   p = strchr(fn_copy, ' ');
   if(p != NULL) *p = 0;
   /* Try opening the file */
   fd = fd_open(fn_copy, false);
-  if(fd <= 0)
+  if(fd <= 0) 
   {
     /* File does not exist */
-    palloc_free_page (fn_copy);
+    palloc_free_page (fn_copy); 
     return (tid_t)-1;
   }
   fd_close(fd);
@@ -97,12 +97,12 @@ start_process (void *file_name_)
   else
     success = load (token, &if_.eip, &if_.esp);
   /* Pushes argument onto the stack */
-  if(success)
+  if(success) 
   {
     /* The first stack entry is the name of the program */
     PUSH_STRING(if_.esp, token);
     argc = 1;
-
+    
     while((token = strtok_r(NULL, " ", &save_ptr)) != NULL)
     {
       ++argc;
@@ -510,6 +510,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
     }
   return true;
 }
+
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
@@ -529,7 +530,6 @@ setup_stack (void **esp)
     }
   return success;
 }
-
 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.

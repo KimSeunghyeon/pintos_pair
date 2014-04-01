@@ -10,9 +10,10 @@
 #include "userprog/pagedir.h"
 #include "filesys/filesys.h"
 
+
 static void syscall_handler (struct intr_frame *);
 
-bool is_valid_pointer( uint32_t* pagedir, const void *p );
+bool is_valid_pointer( uint32_t* pagedir, const void *p ); 
 void assertValidPointer(uint32_t* pagedir, void* p);
 void assertValidStack(uint32_t* pagedir, struct intr_frame* f, int args);
 void assertValidStackEntry(uint32_t* pagedir, struct intr_frame*f, int n);
@@ -23,8 +24,8 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
-static int
-syscall_write(int fd, const void* buffer, unsigned size)
+static int 
+syscall_write(int fd, const void* buffer, unsigned size) 
 {
   if(fd == STDIN_FILENO) return -1;
 
@@ -40,10 +41,10 @@ static int
 syscall_read(int fd, void* buffer, unsigned size)
 {
   if(fd == STDOUT_FILENO) return -1;
-  int amt = 0;
+  int amt = 0;  
   if(fd == STDIN_FILENO)
   {
-    while(amt < (int)size)
+    while(amt < (int)size) 
     {
       *((uint8_t*)buffer) = input_getc();
       ++buffer;
@@ -81,12 +82,10 @@ void assertValidStackEntry(uint32_t* pagedir, struct intr_frame*f, int n)
   assertValidPointer(pagedir, GET_STACK(f, n, void*));
 }
 
-
-
 static void
-syscall_handler (struct intr_frame *f)
+syscall_handler (struct intr_frame *f) 
 {
-  uint32_t* pagedir = thread_current()->pagedir;
+  uint32_t* pagedir = thread_current()->pagedir;  
   /* We always need to have a space for *at least* the system call nr */
   assertValidStack(pagedir, f, 1);
   int syscall_nr = GET_STACK(f, 0, int);
@@ -107,11 +106,11 @@ syscall_handler (struct intr_frame *f)
       f->eax = (int)process_execute( GET_STACK(f, 4, const char*) );
       break;
     case SYS_WAIT:
-      assertValidStack( pagedir, f, 2 );
+      assertValidStack( pagedir, f, 2 );      
       if(! is_user_vaddr(GET_STACK(f, 4, void*))) thread_exit(-1);
       f->eax = process_wait( GET_STACK(f, 4, struct thread*) );
       break;
-    case SYS_CREATE:
+    case SYS_CREATE: 
       assertValidStack( pagedir, f, 2 );
       assertValidStackEntry(pagedir, f, 4);
       f->eax = (int)filesys_create( GET_STACK(f, 4, const char*), GET_STACK(f, 8, unsigned));
@@ -157,3 +156,12 @@ syscall_handler (struct intr_frame *f)
       thread_exit (-1);
   }
 }
+
+/*
+static void
+syscall_handler (struct intr_frame *f UNUSED) 
+{
+  printf ("system call!\n");
+  thread_exit ();
+}
+*/
