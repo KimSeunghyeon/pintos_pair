@@ -1,8 +1,15 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <inttypes.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/init.h"
+#include "threads/palloc.h"
+#include "threads/vaddr.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
 static void exit_handler (int status);
@@ -23,7 +30,7 @@ static void sys_close_handler (struct intr_frame *);
 void
 syscall_init (void) 
 {
-  intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
+	intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
 static void
@@ -100,7 +107,6 @@ get_file_case (int fd)
 	return NULL;
 }
 
-
 static void
 sys_exit_handler (struct intr_frame *f)
 {
@@ -133,13 +139,11 @@ exit_handler (int status)
 	thread_exit ();
 }
 
-
 static void
 sys_halt_handler (struct intr_frame *f)
 {
 	power_off();
 }
-
 static void
 sys_exec_handler (struct intr_frame *f)
 {
@@ -149,8 +153,6 @@ sys_exec_handler (struct intr_frame *f)
 	//printf("exec: %s\n", *file);
 	f->eax = process_execute(*file);
 }
-
-
 static void
 sys_wait_handler (struct intr_frame *f)
 {
@@ -159,7 +161,6 @@ sys_wait_handler (struct intr_frame *f)
 	f->eax = process_wait(pid);
 
 }
-
 static void
 sys_create_handler (struct intr_frame *f)
 {
@@ -199,7 +200,6 @@ sys_remove_handler (struct intr_frame *f)
 	sys_remove_done:
 	f->eax = result;
 }
-
 static void
 sys_open_handler (struct intr_frame *f)
 {
@@ -262,7 +262,6 @@ sys_filesize_handler (struct intr_frame *f)
 	sys_filesize_done:
 	f->eax = result;
 }
-
 static void
 sys_read_handler (struct intr_frame *f)
 {
@@ -309,7 +308,6 @@ sys_read_handler (struct intr_frame *f)
 	sys_read_done:
 	f->eax = read_bytes;
 }
-
 static void
 sys_write_handler (struct intr_frame *f)
 {
@@ -350,7 +348,6 @@ sys_write_handler (struct intr_frame *f)
 	sys_write_done:
 	f->eax = written_bytes;
 }
-
 static void
 sys_seek_handler (struct intr_frame *f)
 {
@@ -393,7 +390,6 @@ sys_tell_handler (struct intr_frame *f)
 	sys_tell_done:
 	f->eax = position;
 }
-
 static void
 sys_close_handler (struct intr_frame *f)
 {
@@ -419,8 +415,3 @@ sys_close_handler (struct intr_frame *f)
 	sys_close_done:
 	f->eax = result;
 }
-
-
-
-
-
