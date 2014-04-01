@@ -156,10 +156,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-	while(1){
-
-	}
-  return -1;
+  return thread_wait(child_tid);
 }
 
 /* Free the current process's resources. */
@@ -292,6 +289,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  int fd = 0;
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -299,7 +298,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  // file = filesys_open (file_name);
+  /* We deny write for this file,
+   * until we close it or the thread terminates. */
+  fd = fd_open(file_name, true);
+  file = file_from_fd(fd);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -389,7 +392,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if(!success)
+  {
+    fd_close (fd);
+  }
+  //file_close (file);
   return success;
 }
 
@@ -476,7 +483,10 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Get a page of memory. */
       uint8_t *kpage = palloc_get_page (PAL_USER);
       if (kpage == NULL)
+        {
+        printf(";;;;;\n");
         return false;
+        }
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
@@ -500,7 +510,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
     }
   return true;
 }
-
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
@@ -520,6 +529,7 @@ setup_stack (void **esp)
     }
   return success;
 }
+
 
 /* Adds a mapping from user virtual address UPAGE to kernel
    virtual address KPAGE to the page table.
