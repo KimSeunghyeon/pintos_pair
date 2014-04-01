@@ -694,3 +694,98 @@ install_page (void *upage, void *kpage, bool writable)
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+
+/* Added for project 2 */
+static int
+parse_file_name (const char *file_name, void ***argv_)
+{
+	char *buffer = palloc_get_page(PAL_USER);
+	int i;
+	if (buffer == NULL) {
+		return -1;
+	}
+	strlcpy(buffer, file_name, PGSIZE);
+	char **argv = (char **)palloc_get_page(0);
+	if (argv == NULL) {
+		palloc_free_page(buffer);
+		return -1;
+	}
+	char *token, *save_ptr;
+	int argc = 0;
+
+	for (token = strtok_r (buffer, " ", &save_ptr); token != NULL;
+			token = strtok_r (NULL, " ", &save_ptr)) {
+		argv[argc] = (char *)palloc_get_page(0);
+		if (argv[argc] == NULL) {
+			for (i = 0;i < argc;i++) {
+				palloc_free_page(argv[i]);
+			}
+			palloc_free_page(argv);
+			palloc_free_page(buffer);
+			return -1;
+		}
+		strlcpy(argv[argc], token, PGSIZE);
+		argc++;
+	}
+
+	*argv_ = (void**)argv;
+	palloc_free_page(buffer);
+	return argc;
+}
+
+
+static bool
+setup_arguments (void **esp, int argc, char **argv)
+{
+	int i;
+
+	/*
+	stack_push(&esp, (void *)'\0', 4);
+	stack_push(&esp, (void *)0, 4);
+	for (i = argc - 1;i >= 0;i--) {
+		stack_push(&esp, (void *)(*esp + i + 2), 4);
+	}
+	stack_push(&esp, (void *)(*esp + 4), 4);
+	stack_push(&esp, (void *)(&argc), 4);
+
+	 */
+	char **args = palloc_get_page(0);
+	if (args == NULL) {
+		return false;
+	}
+
+	// argv
+	for (i = argc - 1;i >= 0;i--) {
+		*esp -= strlen(argv[i]) + 4 - strlen(argv[i]) % 4;
+		strlcpy(*esp, argv[i], strlen(argv[i]) + 1);
+		palloc_free_page(argv[i]);
+		args[i] = *esp;
+	}
+	palloc_free_page(argv);
+
+	// argv[n-1]
+	*esp -= 4;
+	memcpy(*esp, "\0", 1);
+
+	// argv *
+	for (i = argc - 1;i >= 0;i--) {
+		*esp -= 4;
+		memcpy(*esp, &args[i], 4);
+	}
+	palloc_free_page(args);
+
+	// argv **
+	int argss = (int)*esp;
+	*esp -= 4;
+	memcpy(*esp, &argss, 4);
+	// argc
+	*esp -= 4;
+	memcpy(*esp, &argc, 4);
+	// fake value
+	*esp -= 4;
+	memcpy(*esp, "\0", 1);
+
+
+	//hex_dump(*esp, *esp, 80, true);
+	return true;
+}
