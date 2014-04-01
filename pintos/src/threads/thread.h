@@ -1,10 +1,10 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
 
-#include "threads/synch.h"
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -89,9 +89,26 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    int exit_code;                      /* exit code */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    /* Used in the child_threads of the parent. */
+    struct list_elem child_elem;
+
+    /* List containing the child threads */
+    struct list child_threads;
+
+    /* File handle of opened files */
+    struct list open_files;
+
+    /* parent */
+    struct thread* parent;
+
+    /* The parent thread who waits for this thread to die should 'down' this
+     * semaphore */
+    struct semaphore life;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -100,12 +117,6 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-    int64_t wakeup_time;
-    int donation_depth;
-    int original_priority;
-    struct semaphore* trying_sema;
-    struct lock* trying_lock;
-    struct list having_locks_list;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -129,7 +140,7 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
-void thread_exit (void) NO_RETURN;
+void thread_exit (int) NO_RETURN;
 void thread_yield (void);
 
 int thread_get_priority (void);
