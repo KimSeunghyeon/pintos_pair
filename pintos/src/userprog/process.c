@@ -30,13 +30,29 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
+  char *p;
+  int fd;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+  /* Check if the file exists */
+  strlcpy (fn_copy, file_name, 256); /* avoiding stack page overflow */
+  //strlcpy (fn_copy, file_name, PGSIZE);
+  p = strchr(fn_copy, ' ');
+  if(p != NULL) *p = 0;
+  /* Try opening the file */
+  fd = fd_open(fn_copy, false);
+  if(fd <= 0)
+  {
+    /* File does not exist */
+    palloc_free_page (fn_copy);
+    return (tid_t)-1;
+  }
+  fd_close(fd);
+  if(p != NULL) *p = ' ';
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
@@ -45,26 +61,78 @@ process_execute (const char *file_name)
   return tid;
 }
 
-/* A thread function that loads a user process and makes it start
+#define PUSH_STRING(ESP, STRING) {  \
+  int len = strlen(STRING) + 1;     \
+  ESP -= len;                       \
+  strlcpy((char*)ESP, STRING, len); \
+  }
+#define PUSH_UNSIGNED(ESP, UNSIGNED) {     \
+  ESP -= 4;                                \
+  *((unsigned*)ESP) = (unsigned)UNSIGNED;  \
+  }
+
+/* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *f_name)
+start_process (void *file_name_)
 {
-  char *file_name = f_name;
+  char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+
+  char *token, *save_ptr;
+  int argc, i;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  //success = load (file_name, &if_.eip, &if_.esp);
+
+  /* The first token is the file name */
+  token = strtok_r(file_name, " ", &save_ptr);
+  if(token == NULL)
+    success = false;
+  else
+    success = load (token, &if_.eip, &if_.esp);
+  /* Pushes argument onto the stack */
+  if(success)
+  {
+    /* The first stack entry is the name of the program */
+    PUSH_STRING(if_.esp, token);
+    argc = 1;
+
+    while((token = strtok_r(NULL, " ", &save_ptr)) != NULL)
+    {
+      ++argc;
+      PUSH_STRING(if_.esp, token);
+    }
+    save_ptr = (char*)if_.esp;
+    /* Force word alignment */
+    if_.esp -= (unsigned)if_.esp % 4;
+    /* Push NULL */
+    PUSH_UNSIGNED(if_.esp, 0);
+    for(i = 0; i < argc; ++i)
+    {
+        PUSH_UNSIGNED(if_.esp, save_ptr);
+      save_ptr += strlen(save_ptr) + 1;
+    }
+    /* Push argv */
+    save_ptr = (char*)if_.esp;
+    PUSH_UNSIGNED(if_.esp, save_ptr);
+    /* Push argc */
+    PUSH_UNSIGNED(if_.esp, argc);
+    /* Push return address (NULL) */
+    PUSH_UNSIGNED(if_.esp, 0);
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
-    thread_exit ();
+  {
+    thread_exit (-1);
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -75,6 +143,7 @@ start_process (void *f_name)
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
+
 
 /* Waits for thread TID to die and returns its exit status.  If
    it was terminated by the kernel (i.e. killed due to an
