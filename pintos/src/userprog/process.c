@@ -30,13 +30,29 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
+  char *p;
+  int fd;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
+  /* Check if the file exists */
+  strlcpy (fn_copy, file_name, 256); /* avoiding stack page overflow */
+  //strlcpy (fn_copy, file_name, PGSIZE);
+  p = strchr(fn_copy, ' ');
+  if(p != NULL) *p = 0;
+  /* Try opening the file */
+  fd = fd_open(fn_copy, false);
+  if(fd <= 0)
+  {
+    /* File does not exist */
+    palloc_free_page (fn_copy);
+    return (tid_t)-1;
+  }
+  fd_close(fd);
+  if(p != NULL) *p = ' ';
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
@@ -44,6 +60,16 @@ process_execute (const char *file_name)
     palloc_free_page (fn_copy); 
   return tid;
 }
+
+#define PUSH_STRING(ESP, STRING) {  \
+  int len = strlen(STRING) + 1;     \
+  ESP -= len;                       \
+  strlcpy((char*)ESP, STRING, len); \
+  }
+#define PUSH_UNSIGNED(ESP, UNSIGNED) {     \
+  ESP -= 4;                                \
+  *((unsigned*)ESP) = (unsigned)UNSIGNED;  \
+  }
 
 /* A thread function that loads a user process and makes it start
    running. */
