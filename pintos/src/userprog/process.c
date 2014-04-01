@@ -171,30 +171,54 @@ process_execute (const char *file_name)
 static void
 start_process (void *f_name)
 {
-  char *file_name = f_name;
-  struct intr_frame if_;
-  bool success;
+	char *file_name = f_name;
+	struct intr_frame if_;
+	bool success;
 
-  /* Initialize interrupt frame and load executable. */
-  memset (&if_, 0, sizeof if_);
-  if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
-  if_.cs = SEL_UCSEG;
-  if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+	struct process *master_process;
 
-  /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+	//printf("process_start_process.. %s \n", thread_current()->name);
 
-  /* Start the user process by simulating a return from an
+	/* Initialize interrupt frame and load executable. */
+	memset (&if_, 0, sizeof if_);
+	if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
+	if_.cs = SEL_UCSEG;
+	if_.eflags = FLAG_IF | FLAG_MBS;
+
+	lock_acquire(&filesys_lock);
+	success = load (file_name, &if_.eip, &if_.esp);
+	lock_release(&filesys_lock);
+
+	/* If load failed, quit. */
+	palloc_free_page (file_name);
+	if (!success) {
+		thread_exit ();
+	}
+	else {
+		/* find process with tid and set remaining informations */
+		/* maybe need some synch */
+		file_deny_write(thread_current()->loaded_file);
+		lock_acquire(&thread_lock);
+		master_process = get_proc_with_tid(thread_current()->tid);
+		ASSERT(master_process != NULL);
+		thread_current()->master_proc = master_process;
+		master_process->slave = thread_current();
+		master_process->pid = thread_current()->tid;
+
+		list_push_back(&master_process->slave_threads, &thread_current()->p_elem); /* not used right now */
+		lock_release(&thread_lock);
+		//printf("process_start: process is changed.. name: %s, tid: %d\n", thread_current()->name, thread_current()->master_proc->slave_tid);
+
+	}
+
+	/* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
-  asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
-  NOT_REACHED ();
+	asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
+	NOT_REACHED ();
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -209,6 +233,9 @@ start_process (void *f_name)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+	while(1){
+
+	}
   return -1;
 }
 
