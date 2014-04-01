@@ -30,29 +30,13 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-  char *p;
-  int fd;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  /* Check if the file exists */  
-  strlcpy (fn_copy, file_name, 256); /* avoiding stack page overflow */
-  //strlcpy (fn_copy, file_name, PGSIZE);  
-  p = strchr(fn_copy, ' ');
-  if(p != NULL) *p = 0;
-  /* Try opening the file */
-  fd = fd_open(fn_copy, false);
-  if(fd <= 0) 
-  {
-    /* File does not exist */
-    palloc_free_page (fn_copy); 
-    return (tid_t)-1;
-  }
-  fd_close(fd);
-  if(p != NULL) *p = ' ';
+  strlcpy (fn_copy, file_name, PGSIZE);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
@@ -61,78 +45,26 @@ process_execute (const char *file_name)
   return tid;
 }
 
-#define PUSH_STRING(ESP, STRING) {  \
-  int len = strlen(STRING) + 1;     \
-  ESP -= len;                       \
-  strlcpy((char*)ESP, STRING, len); \
-  }
-#define PUSH_UNSIGNED(ESP, UNSIGNED) {     \
-  ESP -= 4;                                \
-  *((unsigned*)ESP) = (unsigned)UNSIGNED;  \
-  }
-
-/* A thread function that loads a user process and starts it
+/* A thread function that loads a user process and makes it start
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *f_name)
 {
-  char *file_name = file_name_;
+  char *file_name = f_name;
   struct intr_frame if_;
   bool success;
-
-  char *token, *save_ptr;
-  int argc, i;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  //success = load (file_name, &if_.eip, &if_.esp);
-
-  /* The first token is the file name */
-  token = strtok_r(file_name, " ", &save_ptr);
-  if(token == NULL)
-    success = false;
-  else
-    success = load (token, &if_.eip, &if_.esp);
-  /* Pushes argument onto the stack */
-  if(success) 
-  {
-    /* The first stack entry is the name of the program */
-    PUSH_STRING(if_.esp, token);
-    argc = 1;
-    
-    while((token = strtok_r(NULL, " ", &save_ptr)) != NULL)
-    {
-      ++argc;
-      PUSH_STRING(if_.esp, token);
-    }
-    save_ptr = (char*)if_.esp;
-    /* Force word alignment */
-    if_.esp -= (unsigned)if_.esp % 4;
-    /* Push NULL */
-    PUSH_UNSIGNED(if_.esp, 0);
-    for(i = 0; i < argc; ++i)
-    {
-        PUSH_UNSIGNED(if_.esp, save_ptr);
-      save_ptr += strlen(save_ptr) + 1;
-    }
-    /* Push argv */
-    save_ptr = (char*)if_.esp;
-    PUSH_UNSIGNED(if_.esp, save_ptr);
-    /* Push argc */
-    PUSH_UNSIGNED(if_.esp, argc);
-    /* Push return address (NULL) */
-    PUSH_UNSIGNED(if_.esp, 0);
-  }
+  success = load (file_name, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
-  {
-    thread_exit (-1);
-  }
+    thread_exit ();
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -156,25 +88,19 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return thread_wait(child_tid);
+  return -1;
 }
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
-  struct thread *cur = thread_current ();
+  struct thread *curr = thread_current ();
   uint32_t *pd;
-
-  /* Find the first blank and make it to null-terminator */
-  char* p = strchr(cur->name, ' ');
-  if(p != NULL) *p = 0;
-  printf("%s: exit(%d)\n", cur->name, cur->exit_code);
-  if(p != NULL) *p = ' ';
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
-  pd = cur->pagedir;
+  pd = curr->pagedir;
   if (pd != NULL) 
     {
       /* Correct ordering here is crucial.  We must set
@@ -184,7 +110,7 @@ process_exit (void)
          directory before destroying the process's page
          directory, or our active page directory will be one
          that's been freed (and cleared). */
-      cur->pagedir = NULL;
+      curr->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
@@ -289,8 +215,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
-  int fd = 0;
-
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -298,11 +222,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  // file = filesys_open (file_name);
-  /* We deny write for this file,
-   * until we close it or the thread terminates. */
-  fd = fd_open(file_name, true);
-  file = file_from_fd(fd);
+  file = filesys_open (file_name);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
@@ -392,11 +312,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  if(!success)
-  {
-    fd_close (fd);
-  }
-  //file_close (file);
+  file_close (file);
   return success;
 }
 
@@ -483,10 +399,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
       /* Get a page of memory. */
       uint8_t *kpage = palloc_get_page (PAL_USER);
       if (kpage == NULL)
-        {
-        printf(";;;;;\n");
         return false;
-        }
 
       /* Load this page. */
       if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
