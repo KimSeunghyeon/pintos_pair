@@ -418,113 +418,134 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp) 
 {
-  struct thread *t = thread_current ();
-  struct Elf32_Ehdr ehdr;
-  struct file *file = NULL;
-  off_t file_ofs;
-  bool success = false;
-  int i;
+	struct thread *t = thread_current ();
+	struct Elf32_Ehdr ehdr;
+	struct file *file = NULL;
+	struct file *deny_file = NULL;
+	off_t file_ofs;
+	bool success = false;
+	int i;
 
-  /* Allocate and activate page directory. */
-  t->pagedir = pagedir_create ();
-  if (t->pagedir == NULL) 
-    goto done;
-  process_activate ();
+	/* Allocate and activate page directory. */
+	t->pagedir = pagedir_create ();
+	if (t->pagedir == NULL)
+		goto done;
+	process_activate ();
 
-  /* Open executable file. */
-  file = filesys_open (file_name);
-  if (file == NULL) 
-    {
-      printf ("load: %s: open failed\n", file_name);
-      goto done; 
-    }
+	/* Parse file name and get arguments */
+	int argc = 0;
+	char **argv = NULL;
+	argc = parse_file_name (file_name, (void ***)&argv);
+	if (argc == -1) {
+		goto done;
+	}
+	strlcpy (t->name, argv[0], strlen(argv[0]) + 1);
 
-  /* Read and verify executable header. */
-  if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
-      || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
-      || ehdr.e_type != 2
-      || ehdr.e_machine != 3
-      || ehdr.e_version != 1
-      || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
-      || ehdr.e_phnum > 1024) 
-    {
-      printf ("load: %s: error loading executable\n", file_name);
-      goto done; 
-    }
+	deny_file = filesys_open(argv[0]);
+	if (deny_file != NULL) {
+		thread_current()->loaded_file = deny_file;
+	}
 
-  /* Read program headers. */
-  file_ofs = ehdr.e_phoff;
-  for (i = 0; i < ehdr.e_phnum; i++) 
-    {
-      struct Elf32_Phdr phdr;
+	/* Open executable file. */
+	//file = filesys_open (file_name);
+	ASSERT (argv[0] != NULL);
+	file = filesys_open (argv[0]);
+	if (file == NULL)
+	{
+		printf ("load: %s: open failed\n", argv[0]);
+		goto done;
+	}
 
-      if (file_ofs < 0 || file_ofs > file_length (file))
-        goto done;
-      file_seek (file, file_ofs);
+	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
+			|| memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
+			|| ehdr.e_type != 2
+			|| ehdr.e_machine != 3
+			|| ehdr.e_version != 1
+			|| ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
+			|| ehdr.e_phnum > 1024)
+	{
+		printf ("load: %s: error loading executable\n", argv[0]);
+		goto done;
+	}
 
-      if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
-        goto done;
-      file_ofs += sizeof phdr;
-      switch (phdr.p_type) 
-        {
-        case PT_NULL:
-        case PT_NOTE:
-        case PT_PHDR:
-        case PT_STACK:
-        default:
-          /* Ignore this segment. */
-          break;
-        case PT_DYNAMIC:
-        case PT_INTERP:
-        case PT_SHLIB:
-          goto done;
-        case PT_LOAD:
-          if (validate_segment (&phdr, file)) 
-            {
-              bool writable = (phdr.p_flags & PF_W) != 0;
-              uint32_t file_page = phdr.p_offset & ~PGMASK;
-              uint32_t mem_page = phdr.p_vaddr & ~PGMASK;
-              uint32_t page_offset = phdr.p_vaddr & PGMASK;
-              uint32_t read_bytes, zero_bytes;
-              if (phdr.p_filesz > 0)
-                {
-                  /* Normal segment.
+	/* Read program headers. */
+	file_ofs = ehdr.e_phoff;
+	for (i = 0; i < ehdr.e_phnum; i++)
+	{
+		struct Elf32_Phdr phdr;
+
+		if (file_ofs < 0 || file_ofs > file_length (file))
+			goto done;
+		file_seek (file, file_ofs);
+
+		if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
+			goto done;
+		file_ofs += sizeof phdr;
+		switch (phdr.p_type)
+		{
+		case PT_NULL:
+		case PT_NOTE:
+		case PT_PHDR:
+		case PT_STACK:
+		default:
+			/* Ignore this segment. */
+			break;
+		case PT_DYNAMIC:
+		case PT_INTERP:
+		case PT_SHLIB:
+			goto done;
+		case PT_LOAD:
+			if (validate_segment (&phdr, file))
+			{
+				bool writable = (phdr.p_flags & PF_W) != 0;
+				uint32_t file_page = phdr.p_offset & ~PGMASK;
+				uint32_t mem_page = phdr.p_vaddr & ~PGMASK;
+				uint32_t page_offset = phdr.p_vaddr & PGMASK;
+				uint32_t read_bytes, zero_bytes;
+				if (phdr.p_filesz > 0)
+				{
+					/* Normal segment.
                      Read initial part from disk and zero the rest. */
-                  read_bytes = page_offset + phdr.p_filesz;
-                  zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
-                                - read_bytes);
-                }
-              else 
-                {
-                  /* Entirely zero.
+					read_bytes = page_offset + phdr.p_filesz;
+					zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
+							- read_bytes);
+				}
+				else
+				{
+					/* Entirely zero.
                      Don't read anything from disk. */
-                  read_bytes = 0;
-                  zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
-                }
-              if (!load_segment (file, file_page, (void *) mem_page,
-                                 read_bytes, zero_bytes, writable))
-                goto done;
-            }
-          else
-            goto done;
-          break;
-        }
-    }
+					read_bytes = 0;
+					zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
+				}
+				if (!load_segment (file, file_page, (void *) mem_page,
+						read_bytes, zero_bytes, writable))
+					goto done;
+			}
+			else
+				goto done;
+			break;
+		}
+	}
 
-  /* Set up stack. */
-  if (!setup_stack (esp))
-    goto done;
+	/* Set up stack. */
+	if (!setup_stack (esp))
+		goto done;
 
-  /* Start address. */
-  *eip = (void (*) (void)) ehdr.e_entry;
+	if (!setup_arguments (esp, argc, argv))
+		goto done;
 
-  success = true;
 
- done:
-  /* We arrive here whether the load is successful or not. */
-  file_close (file);
-  return success;
+	/* Start address. */
+	*eip = (void (*) (void)) ehdr.e_entry;
+
+	success = true;
+
+	done:
+	/* We arrive here whether the load is successful or not. */
+	file_close (file);
+	return success;
 }
+
 
 /* load() helpers. */
 
