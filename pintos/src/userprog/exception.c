@@ -81,100 +81,32 @@ kill (struct intr_frame *f)
      
   /* The interrupt frame's code segment value tells us where the
      exception originated. */
-    enum intr_level old_level;
   switch (f->cs)
     {
     case SEL_UCSEG:
       /* User's code segment, so it's a user exception, as we
-         expected.  Kill the user process.  */ /*
+         expected.  Kill the user process.  */
       printf ("%s: dying due to interrupt %#04x (%s).\n",
               thread_name (), f->vec_no, intr_name (f->vec_no));
-      intr_dump_frame (f); */
-
-    	printf ("%s: exit(%d)\n", thread_current()->name, -1);
-    	old_level = intr_disable();
-    	thread_current()->master_proc->thread_died = true;
-    	thread_current()->master_proc->thread_die_status = -1;
-    	file_close(thread_current()->loaded_file);
-    	thread_unblock(thread_current()->master_proc->parent->slave);
-    	intr_set_level (old_level);
-    	if (lock_held_by_current_thread(&filesys_lock))
-    		lock_release(&filesys_lock);
-    	if (lock_held_by_current_thread(&thread_lock))
-    		lock_release(&thread_lock);
-    	process_exit();
-
-    	thread_exit ();
-    	//thread_exit ();
+      intr_dump_frame (f);
+      thread_exit (); 
 
     case SEL_KCSEG:
       /* Kernel's code segment, which indicates a kernel bug.
          Kernel code shouldn't throw exceptions.  (Page faults
          may cause kernel exceptions--but they shouldn't arrive
-         here.)  Panic the kernel to make the point.
-      intr_dump_frame (f);  */
-
-    	printf ("%s: exit(%d)\n", thread_current()->name, -1);
-      	old_level = intr_disable();
-      	thread_current()->master_proc->thread_died = true;
-      	thread_current()->master_proc->thread_die_status = -1;
-      	file_close(thread_current()->loaded_file);
-      	thread_unblock(thread_current()->master_proc->parent->slave);
-      	intr_set_level (old_level);
-      	if (lock_held_by_current_thread(&filesys_lock))
-      		lock_release(&filesys_lock);
-      	if (lock_held_by_current_thread(&thread_lock))
-      		lock_release(&thread_lock);
-      	process_exit();
-      	thread_exit ();
-      	//PANIC ("Kernel bug - unexpected interrupt in kernel");
+         here.)  Panic the kernel to make the point.  */
+      intr_dump_frame (f);
+      PANIC ("Kernel bug - unexpected interrupt in kernel"); 
 
     default:
-    	/* Some other code segment?  Shouldn't happen.  Panic the
-         kernel. */ /*
+      /* Some other code segment?  Shouldn't happen.  Panic the
+         kernel. */
       printf ("Interrupt %#04x (%s) in unknown segment %04x\n",
-             f->vec_no, intr_name (f->vec_no), f->cs); */
-
-    	printf ("%s: exit(%d)\n", thread_current()->name, -1);
-    	old_level = intr_disable();
-    	thread_current()->master_proc->thread_died = true;
-    	thread_current()->master_proc->thread_die_status = -1;
-    	file_close(thread_current()->loaded_file);
-    	thread_unblock(thread_current()->master_proc->parent->slave);
-    	intr_set_level (old_level);
-    	if (lock_held_by_current_thread(&filesys_lock))
-    		lock_release(&filesys_lock);
-    	if (lock_held_by_current_thread(&thread_lock))
-    		lock_release(&thread_lock);
-    	process_exit();
-
-    	thread_exit ();
-      //thread_exit ();
+             f->vec_no, intr_name (f->vec_no), f->cs);
+      thread_exit ();
     }
 }
-
-
-
-static int
-get_user (const uint8_t *uaddr)
-{
-	int result;
-	asm ("movl $1f, %0; movzbl %1, %0; 1:"
-			: "=&a" (result) : "m" (*uaddr));
-	return result;
-}
-
-static bool
-put_user (uint8_t *udst, uint8_t byte)
-{
-	int error_code;
-	asm ("movl $1f, %0; movb %b2, %1; 1:"
-			: "=&a" (error_code), "=m" (*udst) : "r" (byte));
-	return error_code != -1;
-}
-
-
-
 
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
