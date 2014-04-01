@@ -177,8 +177,6 @@ put_user (uint8_t *udst, uint8_t byte)
 	return error_code != -1;
 }
 
-
-
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
    also require modifying this code.
@@ -221,12 +219,12 @@ page_fault (struct intr_frame *f)
 
   /* To implement virtual memory, delete the rest of the function
      body, and replace it with code that brings in the page to
-     which fault_addr refers. */
+     which fault_addr refers. */ /*
   printf ("Page fault at %p: %s error %s page in %s context.\n",
           fault_addr,
           not_present ? "not present" : "rights violation",
           write ? "writing" : "reading",
-          user ? "user" : "kernel");
+          user ? "user" : "kernel"); */
   kill (f);
 }
 

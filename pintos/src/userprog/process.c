@@ -63,7 +63,6 @@ get_proc_with_tid (tid_t tid)
 	return NULL;
 }
 
-
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -297,25 +296,26 @@ process_wait (tid_t child_tid)
 void
 process_exit (void)
 {
-  struct thread *curr = thread_current ();
-  uint32_t *pd;
+	struct thread *curr = thread_current ();
+	uint32_t *pd;
 
-  /* Destroy the current process's page directory and switch back
+	//printf("process_exit.. %s \n", thread_current()->name);
+	/* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
-  pd = curr->pagedir;
-  if (pd != NULL)
-    {
-      /* Correct ordering here is crucial.  We must set
+	pd = curr->pagedir;
+	if (pd != NULL)
+	{
+		/* Correct ordering here is crucial.  We must set
          cur->pagedir to NULL before switching page directories,
          so that a timer interrupt can't switch back to the
          process page directory.  We must activate the base page
          directory before destroying the process's page
          directory, or our active page directory will be one
          that's been freed (and cleared). */
-      curr->pagedir = NULL;
-      pagedir_activate (NULL);
-      pagedir_destroy (pd);
-    }
+		curr->pagedir = NULL;
+		pagedir_activate (NULL);
+		pagedir_destroy (pd);
+	}
 }
 
 /* Sets up the CPU for running user code in the current
@@ -334,7 +334,6 @@ process_activate (void)
 	tss_update ();
 }
 
-
 /* We load ELF binaries.  The following definitions are taken
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
@@ -351,37 +350,37 @@ typedef uint16_t Elf32_Half;
 /* Executable header.  See [ELF1] 1-4 to 1-8.
    This appears at the very beginning of an ELF binary. */
 struct Elf32_Ehdr
-  {
-    unsigned char e_ident[16];
-    Elf32_Half    e_type;
-    Elf32_Half    e_machine;
-    Elf32_Word    e_version;
-    Elf32_Addr    e_entry;
-    Elf32_Off     e_phoff;
-    Elf32_Off     e_shoff;
-    Elf32_Word    e_flags;
-    Elf32_Half    e_ehsize;
-    Elf32_Half    e_phentsize;
-    Elf32_Half    e_phnum;
-    Elf32_Half    e_shentsize;
-    Elf32_Half    e_shnum;
-    Elf32_Half    e_shstrndx;
-  };
+{
+	unsigned char e_ident[16];
+	Elf32_Half    e_type;
+	Elf32_Half    e_machine;
+	Elf32_Word    e_version;
+	Elf32_Addr    e_entry;
+	Elf32_Off     e_phoff;
+	Elf32_Off     e_shoff;
+	Elf32_Word    e_flags;
+	Elf32_Half    e_ehsize;
+	Elf32_Half    e_phentsize;
+	Elf32_Half    e_phnum;
+	Elf32_Half    e_shentsize;
+	Elf32_Half    e_shnum;
+	Elf32_Half    e_shstrndx;
+};
 
 /* Program header.  See [ELF1] 2-2 to 2-4.
    There are e_phnum of these, starting at file offset e_phoff
    (see [ELF1] 1-6). */
 struct Elf32_Phdr
-  {
-    Elf32_Word p_type;
-    Elf32_Off  p_offset;
-    Elf32_Addr p_vaddr;
-    Elf32_Addr p_paddr;
-    Elf32_Word p_filesz;
-    Elf32_Word p_memsz;
-    Elf32_Word p_flags;
-    Elf32_Word p_align;
-  };
+{
+	Elf32_Word p_type;
+	Elf32_Off  p_offset;
+	Elf32_Addr p_vaddr;
+	Elf32_Addr p_paddr;
+	Elf32_Word p_filesz;
+	Elf32_Word p_memsz;
+	Elf32_Word p_flags;
+	Elf32_Word p_align;
+};
 
 /* Values for p_type.  See [ELF1] 2-3. */
 #define PT_NULL    0            /* Ignore. */
@@ -401,9 +400,8 @@ struct Elf32_Phdr
 static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
-                          uint32_t read_bytes, uint32_t zero_bytes,
-                          bool writable);
-
+		uint32_t read_bytes, uint32_t zero_bytes,
+		bool writable);
 /* Added for project 2 */
 static int parse_file_name (const char *file_name, void ***argv_);
 static bool setup_arguments (void **esp, int argc, char **argv);
@@ -543,7 +541,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 	return success;
 }
 
-
 /* load() helpers. */
 
 static bool install_page (void *upage, void *kpage, bool writable);
@@ -553,44 +550,44 @@ static bool install_page (void *upage, void *kpage, bool writable);
 static bool
 validate_segment (const struct Elf32_Phdr *phdr, struct file *file) 
 {
-  /* p_offset and p_vaddr must have the same page offset. */
-  if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK)) 
-    return false; 
+	/* p_offset and p_vaddr must have the same page offset. */
+	if ((phdr->p_offset & PGMASK) != (phdr->p_vaddr & PGMASK))
+		return false;
 
-  /* p_offset must point within FILE. */
-  if (phdr->p_offset > (Elf32_Off) file_length (file)) 
-    return false;
+	/* p_offset must point within FILE. */
+	if (phdr->p_offset > (Elf32_Off) file_length (file))
+		return false;
 
-  /* p_memsz must be at least as big as p_filesz. */
-  if (phdr->p_memsz < phdr->p_filesz) 
-    return false; 
+	/* p_memsz must be at least as big as p_filesz. */
+	if (phdr->p_memsz < phdr->p_filesz)
+		return false;
 
-  /* The segment must not be empty. */
-  if (phdr->p_memsz == 0)
-    return false;
-  
-  /* The virtual memory region must both start and end within the
+	/* The segment must not be empty. */
+	if (phdr->p_memsz == 0)
+		return false;
+
+	/* The virtual memory region must both start and end within the
      user address space range. */
-  if (!is_user_vaddr ((void *) phdr->p_vaddr))
-    return false;
-  if (!is_user_vaddr ((void *) (phdr->p_vaddr + phdr->p_memsz)))
-    return false;
+	if (!is_user_vaddr ((void *) phdr->p_vaddr))
+		return false;
+	if (!is_user_vaddr ((void *) (phdr->p_vaddr + phdr->p_memsz)))
+		return false;
 
-  /* The region cannot "wrap around" across the kernel virtual
+	/* The region cannot "wrap around" across the kernel virtual
      address space. */
-  if (phdr->p_vaddr + phdr->p_memsz < phdr->p_vaddr)
-    return false;
+	if (phdr->p_vaddr + phdr->p_memsz < phdr->p_vaddr)
+		return false;
 
-  /* Disallow mapping page 0.
+	/* Disallow mapping page 0.
      Not only is it a bad idea to map page 0, but if we allowed
      it then user code that passed a null pointer to system calls
      could quite likely panic the kernel by way of null pointer
      assertions in memcpy(), etc. */
-  if (phdr->p_vaddr < PGSIZE)
-    return false;
+	if (phdr->p_vaddr < PGSIZE)
+		return false;
 
-  /* It's okay. */
-  return true;
+	/* It's okay. */
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -609,47 +606,47 @@ validate_segment (const struct Elf32_Phdr *phdr, struct file *file)
    or disk read error occurs. */
 static bool
 load_segment (struct file *file, off_t ofs, uint8_t *upage,
-              uint32_t read_bytes, uint32_t zero_bytes, bool writable) 
+		uint32_t read_bytes, uint32_t zero_bytes, bool writable)
 {
-  ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
-  ASSERT (pg_ofs (upage) == 0);
-  ASSERT (ofs % PGSIZE == 0);
+	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
+	ASSERT (pg_ofs (upage) == 0);
+	ASSERT (ofs % PGSIZE == 0);
 
-  file_seek (file, ofs);
-  while (read_bytes > 0 || zero_bytes > 0) 
-    {
-      /* Do calculate how to fill this page.
+	file_seek (file, ofs);
+	while (read_bytes > 0 || zero_bytes > 0)
+	{
+		/* Do calculate how to fill this page.
          We will read PAGE_READ_BYTES bytes from FILE
          and zero the final PAGE_ZERO_BYTES bytes. */
-      size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
-      size_t page_zero_bytes = PGSIZE - page_read_bytes;
+		size_t page_read_bytes = read_bytes < PGSIZE ? read_bytes : PGSIZE;
+		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-      /* Get a page of memory. */
-      uint8_t *kpage = palloc_get_page (PAL_USER);
-      if (kpage == NULL)
-        return false;
+		/* Get a page of memory. */
+		uint8_t *kpage = palloc_get_page (PAL_USER);
+		if (kpage == NULL)
+			return false;
 
-      /* Load this page. */
-      if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
-        {
-          palloc_free_page (kpage);
-          return false; 
-        }
-      memset (kpage + page_read_bytes, 0, page_zero_bytes);
+		/* Load this page. */
+		if (file_read (file, kpage, page_read_bytes) != (int) page_read_bytes)
+		{
+			palloc_free_page (kpage);
+			return false;
+		}
+		memset (kpage + page_read_bytes, 0, page_zero_bytes);
 
-      /* Add the page to the process's address space. */
-      if (!install_page (upage, kpage, writable)) 
-        {
-          palloc_free_page (kpage);
-          return false; 
-        }
+		/* Add the page to the process's address space. */
+		if (!install_page (upage, kpage, writable))
+		{
+			palloc_free_page (kpage);
+			return false;
+		}
 
-      /* Advance. */
-      read_bytes -= page_read_bytes;
-      zero_bytes -= page_zero_bytes;
-      upage += PGSIZE;
-    }
-  return true;
+		/* Advance. */
+		read_bytes -= page_read_bytes;
+		zero_bytes -= page_zero_bytes;
+		upage += PGSIZE;
+	}
+	return true;
 }
 
 /* Create a minimal stack by mapping a zeroed page at the top of
@@ -657,19 +654,19 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 static bool
 setup_stack (void **esp) 
 {
-  uint8_t *kpage;
-  bool success = false;
+	uint8_t *kpage;
+	bool success = false;
 
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
-    {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE;
-      else
-        palloc_free_page (kpage);
-    }
-  return success;
+	kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+	if (kpage != NULL)
+	{
+		success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+		if (success)
+			*esp = PHYS_BASE;
+		else
+			palloc_free_page (kpage);
+	}
+	return success;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
@@ -684,14 +681,13 @@ setup_stack (void **esp)
 static bool
 install_page (void *upage, void *kpage, bool writable)
 {
-  struct thread *t = thread_current ();
+	struct thread *t = thread_current ();
 
-  /* Verify that there's not already a page at that virtual
+	/* Verify that there's not already a page at that virtual
      address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+	return (pagedir_get_page (t->pagedir, upage) == NULL
+			&& pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
-
 
 /* Added for project 2 */
 static int
@@ -787,4 +783,3 @@ setup_arguments (void **esp, int argc, char **argv)
 	//hex_dump(*esp, *esp, 80, true);
 	return true;
 }
-
