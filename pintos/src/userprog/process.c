@@ -71,26 +71,68 @@ process_execute (const char *file_name)
   *((unsigned*)ESP) = (unsigned)UNSIGNED;  \
   }
 
-/* A thread function that loads a user process and makes it start
+/* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *f_name)
+start_process (void *file_name_)
 {
-  char *file_name = f_name;
+  char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+
+  char *token, *save_ptr;
+  int argc, i;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  //success = load (file_name, &if_.eip, &if_.esp);
+
+  /* The first token is the file name */
+  token = strtok_r(file_name, " ", &save_ptr);
+  if(token == NULL)
+    success = false;
+  else
+    success = load (token, &if_.eip, &if_.esp);
+  /* Pushes argument onto the stack */
+  if(success)
+  {
+    /* The first stack entry is the name of the program */
+    PUSH_STRING(if_.esp, token);
+    argc = 1;
+
+    while((token = strtok_r(NULL, " ", &save_ptr)) != NULL)
+    {
+      ++argc;
+      PUSH_STRING(if_.esp, token);
+    }
+    save_ptr = (char*)if_.esp;
+    /* Force word alignment */
+    if_.esp -= (unsigned)if_.esp % 4;
+    /* Push NULL */
+    PUSH_UNSIGNED(if_.esp, 0);
+    for(i = 0; i < argc; ++i)
+    {
+        PUSH_UNSIGNED(if_.esp, save_ptr);
+      save_ptr += strlen(save_ptr) + 1;
+    }
+    /* Push argv */
+    save_ptr = (char*)if_.esp;
+    PUSH_UNSIGNED(if_.esp, save_ptr);
+    /* Push argc */
+    PUSH_UNSIGNED(if_.esp, argc);
+    /* Push return address (NULL) */
+    PUSH_UNSIGNED(if_.esp, 0);
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
-    thread_exit ();
+  {
+    thread_exit (-1);
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
