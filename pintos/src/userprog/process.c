@@ -231,12 +231,74 @@ start_process (void *f_name)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid)
 {
-	while(1){
+	int status;
+	struct process *child;
 
+	//printf("process_wait: name: %s\n", thread_current()->name);
+
+	lock_acquire(&thread_lock);
+	child = get_proc_with_tid(child_tid);
+	if (child != NULL) {
+		if (child->waiting == true) {
+			lock_release(&thread_lock);
+			return -1;
+		}
+		else {
+			child->waiting = true;
+		}
 	}
-  return -1;
+
+	while (1) {
+		child = get_proc_with_tid(child_tid);
+		if (list_empty(&thread_current()->master_proc->children)) {
+			lock_release(&thread_lock);
+			return 0;
+		}
+
+		if (child->slave_tid == child_tid) {
+			if (child->thread_died) {
+				//printf("process_wait:child removed.. %d \n", child->slave_tid);
+				list_remove(&child->child_elem);
+				lock_release(&thread_lock);
+				return child->thread_die_status;
+			}
+		}
+
+		else { /* invalid child pid */
+			lock_release(&thread_lock);
+			return -1;
+		}
+
+		lock_release(&thread_lock);
+		enum intr_level old_level;
+		old_level = intr_disable();
+		thread_block();
+		intr_set_level (old_level);
+
+		lock_acquire(&thread_lock);
+	}
+	/*
+
+	lock_acquire(&thread_lock);
+	child = get_proc_with_tid(child_tid);
+	if (child != NULL) {
+		if (child->slave_tid == child_tid) {
+			if (child->thread_died) {
+				//printf("process_wait:child removed.. %d \n", child->slave_tid);
+				list_remove(&child->child_elem);
+				lock_release(&thread_lock);
+				return child->thread_die_status;
+			}
+		}
+	}
+	lock_release(&thread_lock);
+	if (list_empty(&process_list))
+		return 0;
+	return -1;
+	*/
+	return -1;
 }
 
 /* Free the current process's resources. */
