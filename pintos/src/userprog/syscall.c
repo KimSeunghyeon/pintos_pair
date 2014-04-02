@@ -126,9 +126,9 @@ sys_exit_handler (struct intr_frame *f)
 static void
 exit_handler (int status)
 {
-	printf ("%s: exit(%d) kkkk\n", thread_current()->name, status);
-	thread_current()->master_proc->thread_died = true;
-	thread_current()->master_proc->thread_die_status = status;
+	printf ("%s: exit(%d) \n", thread_current()->name, status);
+	//thread_current()->master_proc->thread_died = true;
+	//thread_current()->master_proc->thread_die_status = status;
 	file_close(thread_current()->loaded_file);
 
 	if (thread_current()->master_proc->parent->slave->status == THREAD_BLOCKED) {
