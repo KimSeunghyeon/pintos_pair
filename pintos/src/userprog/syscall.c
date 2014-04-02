@@ -23,10 +23,10 @@ static void sys_open_handler (struct intr_frame *);
 static void sys_filesize_handler (struct intr_frame *);
 static void sys_read_handler (struct intr_frame *);
 static void sys_write_handler (struct intr_frame *);
-/*static void sys_seek_handler (struct intr_frame *);
+static void sys_seek_handler (struct intr_frame *);
 static void sys_tell_handler (struct intr_frame *);
 static void sys_close_handler (struct intr_frame *);
-*/
+
 
 void
 syscall_init (void) 
@@ -72,7 +72,7 @@ syscall_handler (struct intr_frame *f)
 	case SYS_WRITE:
 		sys_write_handler(f);
 		break;
-	/*case SYS_SEEK:
+	case SYS_SEEK:
 		sys_seek_handler(f);
 		break;
 	case SYS_TELL:
@@ -81,7 +81,7 @@ syscall_handler (struct intr_frame *f)
 	case SYS_CLOSE:
 		sys_close_handler(f);
 		break;
-	*/
+
 
 	default:
 		//printf ("system call!\n");
@@ -356,4 +356,72 @@ sys_write_handler (struct intr_frame *f)
 
 	sys_write_done:
 	f->eax = written_bytes;
+}
+
+static void
+sys_seek_handler (struct intr_frame *f)
+{
+	int fd = *(int *)(f->esp + 4);
+	unsigned position = *(unsigned *)(f->esp + 8);
+
+	bool result = false;
+
+	if (fd < 3) {
+		result = false;
+		goto sys_seek_done;
+	}
+
+	struct file_case *fc = get_file_case(fd);
+	if (fc != NULL) {
+		file_seek(fc->file, (off_t) position);;
+	}
+
+	sys_seek_done:
+	f->eax = result;
+}
+static void
+sys_tell_handler (struct intr_frame *f)
+{
+	int fd = *(int *)(f->esp + 4);
+
+	unsigned position = -1;
+
+
+	if (fd < 3) {
+		position = -1;
+		goto sys_tell_done;
+	}
+	struct file_case *fc = get_file_case(fd);
+	if (fc != NULL) {
+		position = (unsigned)file_tell(fc->file);
+	}
+
+
+	sys_tell_done:
+	f->eax = position;
+}
+static void
+sys_close_handler (struct intr_frame *f)
+{
+	int fd = *(int *)(f->esp + 4);
+	int result = -1;
+
+	if (fd < 3) {
+		result = -1;
+		goto sys_close_done;
+	}
+
+	struct file_case *fc = get_file_case(fd);
+	if (fc != NULL) {
+		list_remove(&fc->elem);
+		lock_acquire(&filesys_lock);
+		file_close(fc->file);
+		lock_release(&filesys_lock);
+		//palloc_free_page(fc);
+		free(fc);
+		result = 0;
+	}
+
+	sys_close_done:
+	f->eax = result;
 }
