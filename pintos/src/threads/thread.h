@@ -93,9 +93,14 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    /* For project 2 */
+        struct list_elem p_elem;				/* List element for thread list of process */
+        struct process *master_proc;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct file *loaded_file;
 #endif
 
     /* Owned by thread.c. */
@@ -107,6 +112,37 @@ struct thread
     struct lock* trying_lock;
     struct list having_locks_list;
   };
+
+/* For project 2 */
+typedef int pid_t;
+
+struct list process_list;
+
+struct lock filesys_lock;
+struct lock thread_lock;
+
+struct process
+{
+	pid_t pid;
+	struct process *parent; /* parent process */
+	struct list children; /* list for child processes */
+	struct list slave_threads; /* list for slave threads, but not used for now */
+	struct list_elem child_elem; /* list_elem for children */
+	struct list_elem pl_elem; /* list_elem for process list */
+	struct list fd_list; /* list for fild descriptors it opened */
+	struct thread *slave; /* its slave thread */
+	tid_t slave_tid; /* tid of its slave thread */
+	bool thread_died; /* if thread is died, this is set to true */
+	int thread_die_status; /* if thread is died, status is saved */
+	bool waiting; /* if wait() is waiting, set to true to block other wait() */
+};
+
+struct file_case
+{
+	void *file;
+	struct list_elem elem;
+	int fd;
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
