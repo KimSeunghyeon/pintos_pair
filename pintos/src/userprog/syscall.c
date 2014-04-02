@@ -15,8 +15,8 @@ static void syscall_handler (struct intr_frame *);
 static void sys_halt_handler (struct intr_frame *);
 static void sys_exit_handler (struct intr_frame *);
 static void exit_handler (int status); // what is this??
-/*static void sys_exec_handler (struct intr_frame *);
-static void sys_wait_handler (struct intr_frame *);
+static void sys_exec_handler (struct intr_frame *);
+/*static void sys_wait_handler (struct intr_frame *);
 static void sys_create_handler (struct intr_frame *);
 static void sys_remove_handler (struct intr_frame *);
 static void sys_open_handler (struct intr_frame *);
