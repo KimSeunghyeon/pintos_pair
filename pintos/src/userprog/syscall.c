@@ -12,7 +12,6 @@
 #include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
-static void sys_exit_handler (struct intr_frame *);
 static void exit_handler (int status); // what is this??
 static void sys_exec_handler (struct intr_frame *);
 static void sys_wait_handler (struct intr_frame *);
@@ -38,14 +37,21 @@ static void
 syscall_handler (struct intr_frame *f)
 {
 	int *sn = f->esp;
-	//printf ("\nsystem call: %d\n", *sn);
 
 	switch (*sn) {
 	case SYS_HALT:
 		power_off();
 		break;
 	case SYS_EXIT:
-		sys_exit_handler(f);
+		int *status = *(int *)(f->esp + 4);
+			if (is_kernel_vaddr(status)) {
+				f->eax = -1;
+				exit_handler (-1);
+			}
+			else {
+				f->eax = status;
+				exit_handler (status);
+			}
 		break;
 	case SYS_EXEC:
 		sys_exec_handler(f);
@@ -109,7 +115,7 @@ get_file_case (int fd)
 	return NULL;
 }
 
-static void
+/*static void
 sys_exit_handler (struct intr_frame *f)
 {
 	int *status = *(int *)(f->esp + 4);
@@ -121,14 +127,14 @@ sys_exit_handler (struct intr_frame *f)
 		f->eax = status;
 		exit_handler (status);
 	}
-}
+}*/
 
 static void
 exit_handler (int status)
 {
 	printf ("%s: exit(%d) \n", thread_current()->name, status);
 	thread_current()->master_proc->thread_died = true;
-	//thread_current()->master_proc->thread_die_status = status;
+	thread_current()->master_proc->thread_die_status = status;
 	file_close(thread_current()->loaded_file);
 
 	if (thread_current()->master_proc->parent->slave->status == THREAD_BLOCKED) {

@@ -233,8 +233,6 @@ process_wait (tid_t child_tid)
 	int status;
 	struct process *child;
 
-	//printf("process_wait: name: %s\n", thread_current()->name);
-
 	lock_acquire(&thread_lock);
 	child = get_proc_with_tid(child_tid);
 	if (child != NULL) {
@@ -276,25 +274,7 @@ process_wait (tid_t child_tid)
 
 		lock_acquire(&thread_lock);
 	}
-	/*
 
-	lock_acquire(&thread_lock);
-	child = get_proc_with_tid(child_tid);
-	if (child != NULL) {
-		if (child->slave_tid == child_tid) {
-			if (child->thread_died) {
-				//printf("process_wait:child removed.. %d \n", child->slave_tid);
-				list_remove(&child->child_elem);
-				lock_release(&thread_lock);
-				return child->thread_die_status;
-			}
-		}
-	}
-	lock_release(&thread_lock);
-	if (list_empty(&process_list))
-		return 0;
-	return -1;
-	*/
 	return -1;
 }
 
