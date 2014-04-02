@@ -12,10 +12,7 @@
 #include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
-static void sys_exit_handler (struct intr_frame *);
-static void exit_handler (int status); // what is this??
-static void sys_exec_handler (struct intr_frame *);
-static void sys_wait_handler (struct intr_frame *);
+static void exit_handler (int status);
 static void sys_create_handler (struct intr_frame *);
 static void sys_remove_handler (struct intr_frame *);
 static void sys_open_handler (struct intr_frame *);
@@ -38,14 +35,16 @@ static void
 syscall_handler (struct intr_frame *f)
 {
 	int *syscall_nr = f->esp;
-	int *status = *(int *)(f->esp + 4);
 
 	switch (*syscall_nr) {
+
 	case SYS_HALT:
 		power_off();
 		break;
+
 	case SYS_EXIT:
-		status = *(int *)(f->esp + 4);
+
+		int *status = *(int *)(f->esp + 4);
 			if (is_kernel_vaddr(status)) {
 				f->eax = -1;
 				exit_handler (-1);
@@ -55,11 +54,15 @@ syscall_handler (struct intr_frame *f)
 				exit_handler (status);
 			}
 		break;
+
 	case SYS_EXEC:
-		sys_exec_handler(f);
+		const char **file = (char *)(f->esp + 4);
+		f->eax = process_execute(*file);
 		break;
+
 	case SYS_WAIT:
-		sys_wait_handler(f);
+		pid_t pid = *(int *)(f->esp + 4);
+		f->eax = process_wait(pid);
 		break;
 	case SYS_CREATE:
 		sys_create_handler(f);
@@ -128,24 +131,6 @@ exit_handler (int status)
 		thread_unblock(thread_current()->master_proc->parent->slave);
 	}
 	thread_exit ();
-}
-
-static void
-sys_exec_handler (struct intr_frame *f)
-{
-	const char **file = (char *)(f->esp + 4);
-	int status;
-
-	f->eax = process_execute(*file);
-}
-
-static void
-sys_wait_handler (struct intr_frame *f)
-{
-	pid_t pid = *(int *)(f->esp + 4);
-
-	f->eax = process_wait(pid);
-
 }
 
 static void
