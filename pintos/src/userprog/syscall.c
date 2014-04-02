@@ -44,7 +44,8 @@ syscall_handler (struct intr_frame *f)
 
 	case SYS_EXIT:
 
-		int *status = *(int *)(f->esp + 4);
+		int *status;
+			status = *(int *)(f->esp + 4);
 			if (is_kernel_vaddr(status)) {
 				f->eax = -1;
 				exit_handler (-1);
