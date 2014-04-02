@@ -126,8 +126,8 @@ sys_exit_handler (struct intr_frame *f)
 static void
 exit_handler (int status)
 {
-	enum intr_level old_level;
-	old_level = intr_disable();
+//	enum intr_level old_level;
+//	old_level = intr_disable();
 	printf ("%s: exit(%d)\n", thread_current()->name, status);
 	thread_current()->master_proc->thread_died = true;
 	thread_current()->master_proc->thread_die_status = status;
@@ -136,7 +136,7 @@ exit_handler (int status)
 	if (thread_current()->master_proc->parent->slave->status == THREAD_BLOCKED) {
 		thread_unblock(thread_current()->master_proc->parent->slave);
 	}
-	intr_set_level (old_level);
+//	intr_set_level (old_level);
 	//process_exit();
 	thread_exit ();
 }
