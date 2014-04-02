@@ -82,7 +82,7 @@ syscall_handler (struct intr_frame *f)
 
 
 	default:
-		printf ("\n *syscall_nr : %d\n", *sn);
+		printf ("\n *syscall_nr : %d\n", *syscall_nr);
 		break;
 	}
 
