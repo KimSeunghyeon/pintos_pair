@@ -17,8 +17,8 @@ static void sys_exit_handler (struct intr_frame *);
 static void exit_handler (int status); // what is this??
 static void sys_exec_handler (struct intr_frame *);
 static void sys_wait_handler (struct intr_frame *);
-/*static void sys_create_handler (struct intr_frame *);
-static void sys_remove_handler (struct intr_frame *);
+static void sys_create_handler (struct intr_frame *);
+/*static void sys_remove_handler (struct intr_frame *);
 static void sys_open_handler (struct intr_frame *);
 static void sys_filesize_handler (struct intr_frame *);
 static void sys_read_handler (struct intr_frame *);
@@ -54,10 +54,10 @@ syscall_handler (struct intr_frame *f)
 	case SYS_WAIT:
 		sys_wait_handler(f);
 		break;
-	/*case SYS_CREATE:
+	case SYS_CREATE:
 		sys_create_handler(f);
 		break;
-	case SYS_REMOVE:
+	/*case SYS_REMOVE:
 		sys_remove_handler(f);
 		break;
 	case SYS_OPEN:
@@ -167,4 +167,25 @@ sys_wait_handler (struct intr_frame *f)
 
 }
 
+static void
+sys_create_handler (struct intr_frame *f)
+{
+	const char **file = (char *)(f->esp + 4);
+	unsigned initial_size = *(unsigned *)(f->esp + 8);
+	int result = false;
+
+	if (*file == NULL) {
+		exit_handler(-1);
+	}
+	if (strlen(*file) == 0 || strlen(*file) > 14) {
+		result = false;
+		goto sys_create_done;
+	}
+	lock_acquire(&filesys_lock);
+	result = filesys_create(*file, (off_t)initial_size);
+	lock_release(&filesys_lock);
+
+	sys_create_done:
+	f->eax = result;
+}
 
