@@ -20,6 +20,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+
 /* Added for project 2 */
 static int parse_file_name (const char *file_name, void ***argv_);
 static bool setup_arguments (void **esp, int argc, char **argv);

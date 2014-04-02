@@ -144,7 +144,7 @@ exit_handler (int status)
 		thread_unblock(thread_current()->master_proc->parent->slave);
 	}
 	intr_set_level (old_level);
-	process_exit();
+	//process_exit();
 	thread_exit ();
 }
 
