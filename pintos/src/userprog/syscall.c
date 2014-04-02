@@ -117,20 +117,6 @@ get_file_case (int fd)
 }
 
 static void
-sys_exit_handler (struct intr_frame *f)
-{
-	int *status = *(int *)(f->esp + 4);
-	if (is_kernel_vaddr(status)) {
-		f->eax = -1;
-		exit_handler (-1);
-	}
-	else {
-		f->eax = status;
-		exit_handler (status);
-	}
-}
-
-static void
 exit_handler (int status)
 {
 	printf ("%s: exit(%d)\n", thread_current()->name, status);
