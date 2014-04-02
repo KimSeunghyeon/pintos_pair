@@ -12,7 +12,7 @@
 #include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
-//static void sys_exit_handler (struct intr_frame *);
+static void sys_exit_handler (struct intr_frame *);
 static void exit_handler (int status); // what is this??
 static void sys_exec_handler (struct intr_frame *);
 static void sys_wait_handler (struct intr_frame *);
@@ -38,7 +38,6 @@ static void
 syscall_handler (struct intr_frame *f)
 {
 	int *sn = f->esp;
-	int *status;
 	//printf ("\nsystem call: %d\n", *sn);
 
 	switch (*sn) {
@@ -46,16 +45,7 @@ syscall_handler (struct intr_frame *f)
 		power_off();
 		break;
 	case SYS_EXIT:
-		status = *(int *)(f->esp + 4);
-		if (is_kernel_vaddr(status)) {
-			f->eax = -1;
-			exit_handler (-1);
-		}
-		else {
-			f->eax = status;
-			exit_handler (status);
-		}
-		//sys_exit_handler(f);
+		sys_exit_handler(f);
 		break;
 	case SYS_EXEC:
 		sys_exec_handler(f);
@@ -119,7 +109,7 @@ get_file_case (int fd)
 	return NULL;
 }
 
-/*static void
+static void
 sys_exit_handler (struct intr_frame *f)
 {
 	int *status = *(int *)(f->esp + 4);
@@ -131,7 +121,7 @@ sys_exit_handler (struct intr_frame *f)
 		f->eax = status;
 		exit_handler (status);
 	}
-}*/
+}
 
 static void
 exit_handler (int status)
