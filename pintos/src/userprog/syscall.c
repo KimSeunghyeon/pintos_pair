@@ -24,7 +24,7 @@ static void sys_filesize_handler (struct intr_frame *);
 static void sys_read_handler (struct intr_frame *);
 static void sys_write_handler (struct intr_frame *);
 static void sys_seek_handler (struct intr_frame *);
-//static void sys_tell_handler (struct intr_frame *);
+static void sys_tell_handler (struct intr_frame *);
 static void sys_close_handler (struct intr_frame *);
 
 
@@ -75,9 +75,9 @@ syscall_handler (struct intr_frame *f)
 	case SYS_SEEK:
 		sys_seek_handler(f);
 		break;
-/*	case SYS_TELL:
+	case SYS_TELL:
 		sys_tell_handler(f);
-		break;*/
+		break;
 	case SYS_CLOSE:
 		sys_close_handler(f);
 		break;
@@ -379,7 +379,7 @@ sys_seek_handler (struct intr_frame *f)
 	sys_seek_done:
 	f->eax = result;
 }
-/*static void
+static void
 sys_tell_handler (struct intr_frame *f)
 {
 	int fd = *(int *)(f->esp + 4);
@@ -400,7 +400,7 @@ sys_tell_handler (struct intr_frame *f)
 	sys_tell_done:
 	f->eax = position;
 }
-*/
+
 static void
 sys_close_handler (struct intr_frame *f)
 {
