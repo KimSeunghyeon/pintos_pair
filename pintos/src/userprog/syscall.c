@@ -19,11 +19,11 @@ static void sys_exec_handler (struct intr_frame *);
 static void sys_wait_handler (struct intr_frame *);
 static void sys_create_handler (struct intr_frame *);
 static void sys_remove_handler (struct intr_frame *);
-/*static void sys_open_handler (struct intr_frame *);
+static void sys_open_handler (struct intr_frame *);
 static void sys_filesize_handler (struct intr_frame *);
 static void sys_read_handler (struct intr_frame *);
 static void sys_write_handler (struct intr_frame *);
-static void sys_seek_handler (struct intr_frame *);
+/*static void sys_seek_handler (struct intr_frame *);
 static void sys_tell_handler (struct intr_frame *);
 static void sys_close_handler (struct intr_frame *);
 */
@@ -60,7 +60,7 @@ syscall_handler (struct intr_frame *f)
 	case SYS_REMOVE:
 		sys_remove_handler(f);
 		break;
-	/*case SYS_OPEN:
+	case SYS_OPEN:
 		sys_open_handler(f);
 		break;
 	case SYS_FILESIZE:
@@ -72,7 +72,7 @@ syscall_handler (struct intr_frame *f)
 	case SYS_WRITE:
 		sys_write_handler(f);
 		break;
-	case SYS_SEEK:
+	/*case SYS_SEEK:
 		sys_seek_handler(f);
 		break;
 	case SYS_TELL:
@@ -205,4 +205,155 @@ sys_remove_handler (struct intr_frame *f)
 
 	sys_remove_done:
 	f->eax = result;
+}
+
+static void
+sys_open_handler (struct intr_frame *f)
+{
+	const char **file = (char *)(f->esp + 4);
+
+	struct list *fd_list = &thread_current()->master_proc->fd_list;
+	//struct file_case *fcase = (struct file_case *)palloc_get_page(PAL_USER);
+	int fd;
+	struct file_case *fcase = (struct file_case *)malloc(sizeof(struct file_case));
+	if (fcase == NULL) {
+		fd = -1;
+		goto sys_open_done;
+	}
+
+	if (*file == NULL) {
+		fd = -1;
+		goto sys_open_done;
+	}
+	lock_acquire(&filesys_lock);
+	fcase->file = (void *)filesys_open(*file);
+	lock_release(&filesys_lock);
+
+	if (fcase->file == NULL) {
+		//printf("sys_open failed");
+		fd = -1;
+		goto sys_open_done;
+	}
+	if (list_empty(fd_list)) {
+		fcase->fd = 3;
+	}
+	else {
+		struct file_case *front_fcase =
+				list_entry(list_front(fd_list), struct file_case, elem);
+		fcase->fd = front_fcase->fd + 1;
+	}
+
+	list_push_front(fd_list, &fcase->elem);
+	fd = fcase->fd;
+
+	sys_open_done:
+	f->eax = fd;
+}
+
+static void
+sys_filesize_handler (struct intr_frame *f)
+{
+	int fd = *(int *)(f->esp + 4);
+	off_t result = -1;
+
+	if (fd < 3) {
+		result = -1;
+		goto sys_filesize_done;
+	}
+
+	struct file_case *fc = get_file_case(fd);
+	if (fc != NULL) {
+		result = file_length(fc->file);
+	}
+
+	sys_filesize_done:
+	f->eax = result;
+}
+
+static void
+sys_read_handler (struct intr_frame *f)
+{
+	int fd = *(int *)(f->esp + 4);
+	const void **buffer = (void *)(f->esp + 8);
+	unsigned size = *(unsigned *)(f->esp + 12);
+
+	uint8_t key;
+	unsigned input_count = 0;
+	int read_bytes = -1;
+
+
+	if (fd == 0) {
+		while (1) {
+			key = input_getc();
+			if (input_count > size) {
+				*(char **)buffer[input_count] = '\0';
+				break;
+			}
+			if (key == 13) {
+				*(char **)buffer[input_count] = '\0';
+				break;
+			}
+			else {
+				*(char **)buffer[input_count] = key;
+				input_count++;
+			}
+		}
+		read_bytes = input_count;
+		goto sys_read_done;
+	}
+
+	if (fd < 3) {
+		read_bytes = -1;
+		goto sys_read_done;
+	}
+	struct file_case *fc = get_file_case(fd);
+	if (fc != NULL) {
+		lock_acquire(&filesys_lock);
+		read_bytes = file_read(fc->file, *buffer, (off_t)size);
+		lock_release(&filesys_lock);
+	}
+
+	sys_read_done:
+	f->eax = read_bytes;
+}
+
+static void
+sys_write_handler (struct intr_frame *f)
+{
+	int fd = *(int *)(f->esp + 4);
+	const void **buffer = (void *)(f->esp + 8);
+	unsigned size = *(unsigned *)(f->esp + 12);
+
+	int written_bytes = -1;
+
+	off_t file_size;
+
+	if (fd == 0) {
+		written_bytes = -1;
+		goto sys_write_done;
+	}
+	if (fd == 1) {
+		putbuf(*buffer, size);
+		written_bytes = size;
+		goto sys_write_done;
+	}
+
+	struct file_case *fc = get_file_case(fd);
+	if (fc != NULL) {
+		file_size = file_length(fc->file);
+		if ((int32_t)size > file_size) {
+			lock_acquire(&filesys_lock);
+			file_write(fc->file, *buffer, file_size);
+			lock_release(&filesys_lock);
+			written_bytes = (int)file_size;
+		}
+		else {
+			lock_acquire(&filesys_lock);
+			written_bytes = file_write(fc->file, *buffer, (off_t)size);
+			lock_release(&filesys_lock);
+		}
+	}
+
+	sys_write_done:
+	f->eax = written_bytes;
 }
