@@ -38,13 +38,22 @@ static void
 syscall_handler (struct intr_frame *f)
 {
 	int *syscall_nr = f->esp;
+	int *status = *(int *)(f->esp + 4);
 
 	switch (*syscall_nr) {
 	case SYS_HALT:
 		power_off();
 		break;
 	case SYS_EXIT:
-		sys_exit_handler(f);
+		status = *(int *)(f->esp + 4);
+			if (is_kernel_vaddr(status)) {
+				f->eax = -1;
+				exit_handler (-1);
+			}
+			else {
+				f->eax = status;
+				exit_handler (status);
+			}
 		break;
 	case SYS_EXEC:
 		sys_exec_handler(f);
