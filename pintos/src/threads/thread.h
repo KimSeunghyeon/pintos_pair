@@ -1,7 +1,6 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
 
-#include "threads/synch.h"
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
@@ -89,64 +88,29 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-    /* For project 2 */
-    struct list_elem p_elem;				/* List element for thread list of process */
-    struct process *master_proc;
-
-
-
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct file *loaded_file;
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-    int64_t wakeup_time;
-    int donation_depth;
-    int original_priority;
-    struct semaphore* trying_sema;
-    struct lock* trying_lock;
-    struct list having_locks_list;
+
+    // Needed for file system sys calls
+    struct list file_list;
+    int fd;
+
+    // Needed for wait / exec sys calls
+    struct list child_list;
+    tid_t parent;
+    // Points to child_process struct in parent's child list
+    struct child_process* cp;
   };
-
-
-/* For project 2 */
-typedef int pid_t;
-
-struct list process_list;
-
-struct lock filesys_lock;
-struct lock thread_lock;
-
-struct process
-{
-	pid_t pid;
-	struct process *parent; /* parent process */
-	struct list children; /* list for child processes */
-	struct list slave_threads; /* list for slave threads, but not used for now */
-	struct list_elem child_elem; /* list_elem for children */
-	struct list_elem pl_elem; /* list_elem for process list */
-	struct list fd_list; /* list for fild descriptors it opened */
-	struct thread *slave; /* its slave thread */
-	tid_t slave_tid; /* tid of its slave thread */
-	bool thread_died; /* if thread is died, this is set to true */
-	int thread_die_status; /* if thread is died, status is saved */
-	bool waiting; /* if wait() is waiting, set to true to block other wait() */
-};
-
-struct file_case
-{
-	void *file;
-	struct list_elem elem;
-	int fd;
-};
-
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -172,6 +136,10 @@ const char *thread_name (void);
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 
+/* Performs some operation on thread t, given auxiliary data AUX. */
+typedef void thread_action_func (struct thread *t, void *aux);
+void thread_foreach (thread_action_func *, void *);
+
 int thread_get_priority (void);
 void thread_set_priority (int);
 
@@ -179,5 +147,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+bool thread_alive (int pid);
 
 #endif /* threads/thread.h */
