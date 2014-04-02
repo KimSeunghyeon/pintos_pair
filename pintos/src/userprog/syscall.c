@@ -16,8 +16,8 @@ static void sys_halt_handler (struct intr_frame *);
 static void sys_exit_handler (struct intr_frame *);
 static void exit_handler (int status); // what is this??
 static void sys_exec_handler (struct intr_frame *);
-/*static void sys_wait_handler (struct intr_frame *);
-static void sys_create_handler (struct intr_frame *);
+static void sys_wait_handler (struct intr_frame *);
+/*static void sys_create_handler (struct intr_frame *);
 static void sys_remove_handler (struct intr_frame *);
 static void sys_open_handler (struct intr_frame *);
 static void sys_filesize_handler (struct intr_frame *);
@@ -51,10 +51,10 @@ syscall_handler (struct intr_frame *f)
 	case SYS_EXEC:
 		sys_exec_handler(f);
 		break;
-	/*case SYS_WAIT:
+	case SYS_WAIT:
 		sys_wait_handler(f);
 		break;
-	case SYS_CREATE:
+	/*case SYS_CREATE:
 		sys_create_handler(f);
 		break;
 	case SYS_REMOVE:
@@ -156,6 +156,15 @@ sys_exec_handler (struct intr_frame *f)
 
 	//printf("exec: %s\n", *file);
 	f->eax = process_execute(*file);
+}
+
+static void
+sys_wait_handler (struct intr_frame *f)
+{
+	pid_t pid = *(int *)(f->esp + 4);
+
+	f->eax = process_wait(pid);
+
 }
 
 
