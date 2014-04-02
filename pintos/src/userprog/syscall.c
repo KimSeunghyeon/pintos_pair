@@ -1,13 +1,21 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <inttypes.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/init.h"
+#include "threads/palloc.h"
+#include "threads/vaddr.h"
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 
 static void syscall_handler (struct intr_frame *);
 static void sys_halt_handler (struct intr_frame *);
 static void sys_exit_handler (struct intr_frame *);
-static void sys_exec_handler (struct intr_frame *);
+static void exit_handler (int status); // what is this??
+/*static void sys_exec_handler (struct intr_frame *);
 static void sys_wait_handler (struct intr_frame *);
 static void sys_create_handler (struct intr_frame *);
 static void sys_remove_handler (struct intr_frame *);
@@ -18,8 +26,7 @@ static void sys_write_handler (struct intr_frame *);
 static void sys_seek_handler (struct intr_frame *);
 static void sys_tell_handler (struct intr_frame *);
 static void sys_close_handler (struct intr_frame *);
-static void exit_handler (int status); // what is this??
-
+*/
 
 void
 syscall_init (void) 
@@ -44,7 +51,7 @@ syscall_handler (struct intr_frame *f)
 	case SYS_EXEC:
 		sys_exec_handler(f);
 		break;
-	case SYS_WAIT:
+	/*case SYS_WAIT:
 		sys_wait_handler(f);
 		break;
 	case SYS_CREATE:
@@ -74,7 +81,7 @@ syscall_handler (struct intr_frame *f)
 	case SYS_CLOSE:
 		sys_close_handler(f);
 		break;
-
+	*/
 
 	default:
 		//printf ("system call!\n");
