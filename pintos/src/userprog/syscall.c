@@ -38,6 +38,7 @@ static void
 syscall_handler (struct intr_frame *f)
 {
 	int *sn = f->esp;
+	int *status;
 	//printf ("\nsystem call: %d\n", *sn);
 
 	switch (*sn) {
@@ -45,7 +46,7 @@ syscall_handler (struct intr_frame *f)
 		power_off();
 		break;
 	case SYS_EXIT:
-		int *status = *(int *)(f->esp + 4);
+		status = *(int *)(f->esp + 4);
 		if (is_kernel_vaddr(status)) {
 			f->eax = -1;
 			exit_handler (-1);
