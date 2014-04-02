@@ -37,10 +37,9 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f)
 {
-	int *sn = f->esp;
-	//printf ("\nsystem call: %d\n", *sn);
+	int *sys_num = f->esp;
 
-	switch (*sn) {
+	switch (sys_num) {
 	case SYS_HALT:
 		power_off();
 		break;
@@ -83,8 +82,7 @@ syscall_handler (struct intr_frame *f)
 
 
 	default:
-		//printf ("system call!\n");
-		printf ("\nsystem call: %d\n", *sn);
+		printf ("\nsp_system call: %d\n", *sys_num);
 		break;
 	}
 
